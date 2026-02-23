@@ -210,7 +210,7 @@ static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
         // Skip injected events (primary anti-recursion guard)
         if (ms->flags & LLMHF_INJECTED) {
-            printf("[DBG] skip injected pt=(%ld,%ld) flags=0x%lx\n", ms->pt.x, ms->pt.y, ms->flags);
+            // printf("[DBG] skip injected pt=(%ld,%ld) flags=0x%lx\n", ms->pt.x, ms->pt.y, ms->flags);
             return CallNextHookEx(g_hook, nCode, wParam, lParam);
         }
         // Skip if we just called SetCursorPos (secondary guard)
@@ -220,37 +220,40 @@ static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
         POINT pt = ms->pt;
         HMONITOR curMon = MonitorFromPoint(pt, MONITOR_DEFAULTTONULL);
-        if (!curMon) { printf("[DBG] MonitorFromPoint returned NULL for (%ld,%ld)\n", pt.x, pt.y); goto done; }
+        if (!curMon) { /* printf("[DBG] MonitorFromPoint returned NULL for (%ld,%ld)\n", pt.x, pt.y); */ goto done; }
 
         if (g_lastMonitor && curMon != g_lastMonitor &&
             g_lastPos.x != LONG_MIN)
         {
-            printf("[DBG] CROSS detected: lastMon=%p curMon=%p lastPos=(%ld,%ld) pt=(%ld,%ld)\n",
-                   (void*)g_lastMonitor, (void*)curMon, g_lastPos.x, g_lastPos.y, pt.x, pt.y);
+            // printf("[DBG] CROSS detected: lastMon=%p curMon=%p lastPos=(%ld,%ld) pt=(%ld,%ld)\n",
+            //        (void*)g_lastMonitor, (void*)curMon, g_lastPos.x, g_lastPos.y, pt.x, pt.y);
             const MonitorInfo* src = FindMonitor(g_lastMonitor);
             const MonitorInfo* dst = FindMonitor(curMon);
 
-            if (!src || !dst) {
-                printf("[DBG] FindMonitor failed: src=%p dst=%p\n", (const void*)src, (const void*)dst);
-            } else {
-                printf("[DBG] src rc=(%ld,%ld,%ld,%ld) dst rc=(%ld,%ld,%ld,%ld)\n",
-                       src->rc.left, src->rc.top, src->rc.right, src->rc.bottom,
-                       dst->rc.left, dst->rc.top, dst->rc.right, dst->rc.bottom);
+            // printf("[DBG] FindMonitor: src=%p dst=%p\n", (const void*)src, (const void*)dst);
+            if (src && dst) {
+                // printf("[DBG] src rc=(%ld,%ld,%ld,%ld) dst rc=(%ld,%ld,%ld,%ld)\n",
+                //        src->rc.left, src->rc.top, src->rc.right, src->rc.bottom,
+                //        dst->rc.left, dst->rc.top, dst->rc.right, dst->rc.bottom);
                 HitResult hit = FindExitEdge(g_lastPos, pt, src->rc);
-                printf("[DBG] FindExitEdge: edge=%d t=%.6f coord=%.1f\n",
-                       (int)hit.edge, hit.t, hit.coord);
+                // printf("[DBG] FindExitEdge: edge=%d t=%.6f coord=%.1f\n",
+                //        (int)hit.edge, hit.t, hit.coord);
                 if (hit.edge != Edge::None) {
+                    // Use lastPos coordinate for percentage (pt may be clipped by system)
+                    double srcCoord = (hit.edge == Edge::Left || hit.edge == Edge::Right)
+                        ? static_cast<double>(g_lastPos.y)
+                        : static_cast<double>(g_lastPos.x);
                     POINT mapped;
                     if (RemapCursor(src->rc, dst->rc, hit.edge,
-                                    hit.coord, mapped))
+                                    srcCoord, mapped))
                     {
-                        printf("[DBG] RemapCursor: mapped=(%ld,%ld) cur=(%ld,%ld)\n",
-                               mapped.x, mapped.y, pt.x, pt.y);
+                        // printf("[DBG] RemapCursor: mapped=(%ld,%ld) cur=(%ld,%ld)\n",
+                        //        mapped.x, mapped.y, pt.x, pt.y);
                         if (mapped.x != pt.x || mapped.y != pt.y) {
                             g_suppressing = true;
                             BOOL ok = SetCursorPos(mapped.x, mapped.y);
                             g_suppressing = false;
-                            printf("[DBG] SetCursorPos(%ld,%ld) => %d\n", mapped.x, mapped.y, ok);
+                            // printf("[DBG] SetCursorPos(%ld,%ld) => %d\n", mapped.x, mapped.y, ok);
                             if (ok) {
                                 g_lastMonitor = MonitorFromPoint(
                                     mapped, MONITOR_DEFAULTTONULL);
